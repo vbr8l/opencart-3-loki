@@ -1,0 +1,83 @@
+api:
+  enabled: true
+  address: 0.0.0.0:8686
+
+sources:
+  vector_logs:
+    type: internal_logs
+  nginx_logs:
+    type: docker_logs
+    include_images:
+      - "nginx:1.27.0"
+  php-fpm_logs:
+    type: docker_logs
+    include_images:
+      - "opencart-3-loki-php-fpm:latest"
+  mysql_logs:
+    type: docker_logs
+    include_images:
+      - "mysql:8.0.28"
+
+transforms:
+  docker_logs_transformed:
+    type: remap
+    inputs:
+      - nginx_logs
+      - php-fpm_logs
+      - mysql_logs
+    drop_on_abort: true
+    source: |
+      if .event.dataset == "nginx" {
+        . |= parse_regex!(
+            .message,
+            r'^(?P<remote_ip>\d+\.\d+\.\d+\.\d+) - (?P<user_name>\W+) \[(?P<nginx_time>\d+/\w+/\d+:\d+:\d+:\d+ \+\d+)\] "(?P<method>\w+) (?P<url>\W+) HTTP/(?P<http_version>\d+.\d+)" (?P<response_code>\d+) (?P<body_sent>\d+) "(?P<referrer>\W+)" "(?P<http_client>\S+)'
+        )
+        timestamp_parsed = parse_timestamp!(.nginx_time, format: "%d/%h/%Y:%H:%M:%S %z")
+        .timestamp = timestamp_parsed
+      }
+      if .event.dataset == "php-fpm" {
+        . |= parse_regex!(
+            .message,
+            r'^(?P<remote_ip>\d+\.\d+\.\d+\.\d+) -  (?P<php_time>\d+/\w+/\d+:\d+:\d+:\d+ \+\d+) "(?P<method>\w+) (?P<url>\S+)" (?P<response_code>\d+)'
+        )
+        timestamp_parsed = parse_timestamp!(.php_time, format: "%d/%h/%Y:%H:%M:%S %z")
+        .timestamp = timestamp_parsed
+      }
+      if .event.dataset == "mysql" {
+        . |= parse_regex!(
+            .message,
+            r'^(?P<mysql_time>\d+-\d+-\d+T\d+:\d+:\d+.\S+.) (?P<pid>\d+) \[(?P<loglevel>\w+)\] \[(?P<mysql_subsystem>\S+)\] \[(?P<mysql_unit>\w+)\] (?P<mysql_message>.*)'
+        )
+        timestamp_parsed = parse_timestamp!(.mysql_time, format: "%+")
+        .timestamp = timestamp_parsed
+      }
+
+sinks:
+  loki_vectorlogs:
+    type: loki
+    inputs:
+      - vectorlogs
+    encoding:
+      codec: json
+    endpoint: 'http://loki:3100'
+    labels:
+      logsource: vector
+
+  loki_dockerlogs:
+    type: loki
+    inputs:
+      - docker_logs_transformed
+    encoding:
+      codec: json
+    endpoint: 'http://loki:3100'
+    labels:
+      logsource: docker
+
+#  print:
+#    type: console
+#    inputs:
+#      - filebeat
+#    encoding:
+#      codec: json
+#      json:
+#        pretty: true
