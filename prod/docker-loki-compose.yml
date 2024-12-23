@@ -3,7 +3,6 @@ services:
     image: grafana/loki:3.3.2
     volumes:
       - ./conf/loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
-      - data_loki:/data
     ports:
       - "3100:3100"
     command: -config.file=/etc/loki/loki-config.yaml
@@ -44,17 +43,14 @@ services:
 
   vector:
     image: timberio/vector:0.43.1-alpine
-    depends_on:
-      elasticsearch:
-        condition: service_healthy
-    environment:
-      - ELASTICSEARCH_HOST=elasticsearch:9200
     volumes:
       - ./conf/vector/vector.yaml:/etc/vector/vector.yaml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
       - data_vector:/var/lib/vector
     networks:
       - cms-network
-      - elastic-network
+      - loki-network
     ports:
       - "8686:8686"
     mem_limit: ${MEM_LIMIT}

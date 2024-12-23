@@ -5,14 +5,17 @@ api:
 sources:
   vector_logs:
     type: internal_logs
+
   nginx_logs:
     type: docker_logs
     include_images:
       - "nginx:1.27.0"
+
   php-fpm_logs:
     type: docker_logs
     include_images:
       - "opencart-3-loki-php-fpm:latest"
+
   mysql_logs:
     type: docker_logs
     include_images:
@@ -56,7 +59,7 @@ sinks:
   loki_vectorlogs:
     type: loki
     inputs:
-      - vectorlogs
+      - vector_logs
     encoding:
       codec: json
     endpoint: 'http://loki:3100'

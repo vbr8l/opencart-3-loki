@@ -7,7 +7,6 @@ networks:
 volumes:
   data_opencart-3:
   data_vector:
-  data_loki:
 
 include:
   - ./prod/docker-cms-compose.yml
